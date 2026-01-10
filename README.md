@@ -5,6 +5,7 @@
 A full-stack web application that enables users to **chat with PDF documents**, generate summaries, and interact with an AI assistant using **Google Gemini Pro** and **LangChain**.
 
 > **Note:** This project has been configured to strictly communicate in **English** (both the User Interface and AI responses).
+
 > **Note:** **The file test-chat.js and test.js is for debugging so it is in chinese version**.
 ---
 
