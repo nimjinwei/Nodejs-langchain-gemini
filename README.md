@@ -36,8 +36,11 @@ A full-stack web application that enables users to **chat with PDF documents**, 
 # How to Use the file 
 Step 1:
 Create a file .env
+
 port = 3000
+
 GOOGLE_API_KEY= YOUR_API_KEY
+
 
 Step 2:
 npm install
