@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangChain RAG System with PDF</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .connection-status {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .connection-status.connected {
+            background: rgba(40, 167, 69, 0.8);
+        }
+
+        .connection-status.disconnected {
+            background: rgba(220, 53, 69, 0.8);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .tab.active {
+            background: white;
+            color: #667eea;
+        }
+
+        .panel {
+            display: none;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .pdf-info {
+            background: #f0f7ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .pdf-info h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .pdf-info p {
+            margin: 5px 0;
+            color: #333;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9fa;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            background: #e9ecef;
+            border-color: #764ba2;
+        }
+
+        .upload-area.dragover {
+            background: #e7f3ff;
+            border-color: #667eea;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .result h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .result p {
+            line-height: 1.6;
+            color: #333;
+            white-space: pre-wrap;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .chat-messages {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 8px;
+        }
+
+        .message.user {
+            background: #667eea;
+            color: white;
+            margin-left: 20%;
+        }
+
+        .message.assistant {
+            background: #e9ecef;
+            color: #333;
+            margin-right: 20%;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid #c33;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid #28a745;
+        }
+
+        #fileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 LangChain RAG System with PDF</h1>
+        
+        <div id="connectionStatus" class="connection-status disconnected">
+            🔴 Checking server connection...
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('pdf')">📤 Upload PDF</button>
+            <button class="tab" onclick="switchTab('rag')">🔍 Ask PDF</button>
+            <button class="tab" onclick="switchTab('summarize')">📝 Summarize Text</button>
+            <button class="tab" onclick="switchTab('chat')">💬 AI Chat</button>
+        </div>
+
+        <div id="pdf" class="panel active">
+            <h2>📤 Upload PDF Document</h2>
+            <div id="pdfInfoDisplay"></div>
+            
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <p style="font-size: 48px; margin-bottom: 10px;">📄</p>
+                <p style="font-size: 18px; color: #667eea; font-weight: 600;">Click or Drag PDF file here</p>
+                <p style="color: #666; margin-top: 10px;">Supports PDF files up to 10MB</p>
+            </div>
+            
+            <input type="file" id="fileInput" accept=".pdf" onchange="handleFileSelect(event)">
+            
+            <button onclick="summarizePDF()" id="summaryBtn" style="display: none;">📋 Generate PDF Summary</button>
+            
+            <div class="loading" id="pdfLoading">
+                <div class="spinner"></div>
+                <p>Processing PDF...</p>
+            </div>
+            
+            <div id="pdfResult"></div>
+        </div>
+
+        <div id="rag" class="panel">
+            <h2>🔍 RAG PDF Q&A</h2>
+            
+            <div id="ragPdfInfo"></div>
+            
+            <div class="input-group">
+                <label>Ask the PDF:</label>
+                <input type="text" id="ragQuery" placeholder="E.g.: What is the main topic of this document?">
+            </div>
+            <button onclick="queryRAG()">🔍 Search</button>
+            <div class="loading" id="ragLoading">
+                <div class="spinner"></div>
+                <p>Retrieving and generating answer...</p>
+            </div>
+            <div id="ragResult"></div>
+        </div>
+
+        <div id="summarize" class="panel">
+            <h2>📝 Text Summarization</h2>
+            <div class="input-group">
+                <label>Enter text to summarize:</label>
+                <textarea id="summarizeText" placeholder="Paste long text content here..."></textarea>
+            </div>
+            <button onclick="summarizeText()">✨ Generate Summary</button>
+            <div class="loading" id="summarizeLoading">
+                <div class="spinner"></div>
+                <p>Generating summary...</p>
+            </div>
+            <div id="summarizeResult"></div>
+        </div>
+
+        <div id="chat" class="panel">
+            <h2>💬 AI Chat (with Memory)</h2>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="input-group">
+                <input type="text" id="chatInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
+            </div>
+            <button onclick="sendMessage()">📤 Send</button>
+            <button onclick="clearMemory()" class="secondary">🗑️ Clear Memory</button>
+            <div class="loading" id="chatLoading">
+                <div class="spinner"></div>
+                <p>Thinking...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Automatically detect environment and set API address
+        const API_BASE = (() => {
+            // Local environment
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                return 'http://localhost:3000/api';
+            }
+            // Remote environment (CodeSpaces, Replit, etc)
+            return `${window.location.protocol}//${window.location.host}/api`;
+        })();
+        
+        console.log('🔧 API Base URL:', API_BASE);
+        
+        let currentPdfInfo = null;
+
+        // Check backend connection
+        async function checkBackendConnection() {
+            const statusEl = document.getElementById('connectionStatus');
+            try {
+                const response = await fetch(`${API_BASE}/health`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    statusEl.className = 'connection-status connected';
+                    statusEl.textContent = '🟢 Server Connected';
+                    return true;
+                }
+                throw new Error('Server not responding');
+            } catch (error) {
+                console.error('Backend connection failed:', error);
+                statusEl.className = 'connection-status disconnected';
+                statusEl.innerHTML = '🔴 Unable to connect to server<br>Please ensure backend is running (npm start)';
+                return false;
+            }
+        }
+
+        // Check connection on load
+        window.addEventListener('load', async () => {
+            await checkBackendConnection();
+            // Check every 30 seconds
+            setInterval(checkBackendConnection, 30000);
+        });
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            
+            if (tabName === 'rag') {
+                updateRagPdfInfo();
+            }
+        }
+
+        // Drag and drop upload
+        const uploadArea = document.getElementById('uploadArea');
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type === 'application/pdf') {
+                uploadPDF(files[0]);
+            } else {
+                alert('Please upload a PDF file');
+            }
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                uploadPDF(file);
+            }
+        }
+
+        async function uploadPDF(file) {
+            const loading = document.getElementById('pdfLoading');
+            const result = document.getElementById('pdfResult');
+            
+            loading.style.display = 'block';
+            result.innerHTML = '';
+
+            const formData = new FormData();
+            formData.append('pdf', file);
+
+            try {
+                const response = await fetch(`${API_BASE}/upload-pdf`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Server Error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.error) throw new Error(data.error);
+
+                currentPdfInfo = data.info;
+                
+                document.getElementById('pdfInfoDisplay').innerHTML = `
+                    <div class="pdf-info">
+                        <h3>✅ PDF Loaded Successfully</h3>
+                        <p><strong>Filename:</strong> ${data.info.filename}</p>
+                        <p><strong>Pages:</strong> ${data.info.pages}</p>
+                        <p><strong>Text Length:</strong> ${data.info.textLength} chars</p>
+                        <p><strong>Uploaded At:</strong> ${new Date(data.info.uploadedAt).toLocaleString()}</p>
+                    </div>
+                `;
+
+                result.innerHTML = `
+                    <div class="success">
+                        <h3>✅ Success</h3>
+                        <p>PDF has been parsed and indexed into the knowledge base. You can now ask questions about it!</p>
+                    </div>
+                    <div class="result" style="margin-top: 20px;">
+                        <h3>📄 Document Preview</h3>
+                        <p>${data.preview}</p>
+                    </div>
+                `;
+
+                document.getElementById('summaryBtn').style.display = 'inline-block';
+                
+            } catch (error) {
+                console.error('Upload error:', error);
+                let errorMessage = error.message;
+                
+                if (error.message.includes('Failed to fetch') || error.message === 'NetworkError when attempting to fetch resource.') {
+                    errorMessage = 'Cannot connect to server. Please ensure:\n1. Backend is running (npm start)\n2. Server address is correct (http://localhost:3000)\n3. No firewall/proxy is blocking connection';
+                }
+                
+                result.innerHTML = `<div class="error">Error: ${errorMessage}</div>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function updateRagPdfInfo() {
+            const infoDiv = document.getElementById('ragPdfInfo');
+            if (currentPdfInfo) {
+                infoDiv.innerHTML = `
+                    <div class="pdf-info">
+                        <h3>📄 Current PDF</h3>
+                        <p><strong>Filename:</strong> ${currentPdfInfo.filename}</p>
+                        <p><strong>Pages:</strong> ${currentPdfInfo.pages}</p>
+                    </div>
+                `;
+            } else {
+                infoDiv.innerHTML = `
+                    <div class="error">
+                        ⚠️ No PDF uploaded yet. Please upload a document in the "Upload PDF" tab.
+                    </div>
+                `;
+            }
+        }
+
+        async function queryRAG() {
+            const query = document.getElementById('ragQuery').value;
+            if (!query) return alert('Please enter a query');
+
+            const loading = document.getElementById('ragLoading');
+            const result = document.getElementById('ragResult');
+            
+            loading.style.display = 'block';
+            result.innerHTML = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/rag/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) throw new Error(data.error);
+
+                result.innerHTML = `
+                    <div class="result">
+                        <h3>💡 Answer:</h3>
+                        <p>${data.answer}</p>
+                        <p style="margin-top: 15px; color: #666; font-size: 14px;">
+                            📊 Generated based on ${data.sources} document fragments
+                        </p>
+                    </div>
+                `;
+            } catch (error) {
+                result.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function summarizePDF() {
+            const loading = document.getElementById('pdfLoading');
+            const result = document.getElementById('pdfResult');
+            
+            loading.style.display = 'block';
+
+            try {
+                const response = await fetch(`${API_BASE}/pdf-summary`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+                
+                if (data.error) throw new Error(data.error);
+
+                const existingInfo = document.getElementById('pdfInfoDisplay').innerHTML;
+                result.innerHTML = existingInfo + `
+                    <div class="result">
+                        <h3>📋 PDF Document Summary</h3>
+                        <p>${data.summary}</p>
+                    </div>
+                `;
+            } catch (error) {
+                result.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function summarizeText() {
+            const text = document.getElementById('summarizeText').value;
+            if (!text) return alert('Please enter text to summarize');
+
+            const loading = document.getElementById('summarizeLoading');
+            const result = document.getElementById('summarizeResult');
+            
+            loading.style.display = 'block';
+            result.innerHTML = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/summarize`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) throw new Error(data.error);
+
+                result.innerHTML = `
+                    <div class="result">
+                        <h3>📋 Summary:</h3>
+                        <p>${data.summary}</p>
+                    </div>
+                `;
+            } catch (error) {
+                result.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const messages = document.getElementById('chatMessages');
+            const loading = document.getElementById('chatLoading');
+
+            messages.innerHTML += `<div class="message user">${message}</div>`;
+            input.value = '';
+            messages.scrollTop = messages.scrollHeight;
+
+            loading.style.display = 'block';
+            loading.innerHTML = '<div class="spinner"></div><p>Thinking, please wait...</p>';
+
+            const startTime = Date.now();
+
+            try {
+                console.log('📤 Sending message:', message);
+                console.log('⏱️  Start time:', new Date().toISOString());
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    controller.abort();
+                    console.log('⏱️  Request timeout (60s)');
+                }, 60000); // 60s timeout
+
+                const response = await fetch(`${API_BASE}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+                console.log(`✅ Response received (Duration: ${duration}s)`);
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Server Error' }));
+                    throw new Error(errorData.error || `Server Error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.error) throw new Error(data.error);
+
+                console.log('✅ Parsed successfully');
+                messages.innerHTML += `<div class="message assistant">${data.response}</div>`;
+                messages.scrollTop = messages.scrollHeight;
+            } catch (error) {
+                console.error('❌ Chat error:', error);
+                
+                const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+                console.log(`⏱️  Total duration: ${duration}s`);
+                
+                let errorMessage = error.message;
+                
+                if (error.name === 'AbortError') {
+                    errorMessage = 'Request timed out (60s). It might be a network issue or slow API response. Please check:\n1. Network connection\n2. API quota status (15 req/min)\n3. Try again later';
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Cannot connect to server, please check if server is running';
+                } else if (error.message.includes('JSON')) {
+                    errorMessage = 'Server response format error';
+                }
+                
+                messages.innerHTML += `<div class="error">Error (${duration}s): ${errorMessage}</div>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function clearMemory() {
+            if (!confirm('Are you sure you want to clear all conversation memory?')) return;
+
+            try {
+                await fetch(`${API_BASE}/memory`, { method: 'DELETE' });
+                document.getElementById('chatMessages').innerHTML = '';
+                alert('✅ Memory cleared');
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
