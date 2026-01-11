@@ -282,9 +282,9 @@
         
         <div class="tabs">
             <button class="tab active" onclick="switchTab('pdf')">📤 Upload PDF</button>
-            <button class="tab" onclick="switchTab('rag')">🔍 Ask PDF</button>
-            <button class="tab" onclick="switchTab('summarize')">📝 Summarize Text</button>
-            <button class="tab" onclick="switchTab('chat')">💬 AI Chat</button>
+            <button class="tab" onclick="switchTab('rag')">🔍 PDF Q&A</button>
+            <button class="tab" onclick="switchTab('summarize')">📝 Summarizer</button>
+            <button class="tab" onclick="switchTab('chat')">💬 Smart Chat</button>
         </div>
 
         <div id="pdf" class="panel active">
@@ -310,13 +310,13 @@
         </div>
 
         <div id="rag" class="panel">
-            <h2>🔍 RAG PDF Q&A</h2>
+            <h2>🔍 Intelligent Q&A with PDF</h2>
             
             <div id="ragPdfInfo"></div>
             
             <div class="input-group">
                 <label>Ask the PDF:</label>
-                <input type="text" id="ragQuery" placeholder="E.g.: What is the main topic of this document?">
+                <input type="text" id="ragQuery" placeholder="e.g.: What is the main content of this document?">
             </div>
             <button onclick="queryRAG()">🔍 Search</button>
             <div class="loading" id="ragLoading">
@@ -341,12 +341,16 @@
         </div>
 
         <div id="chat" class="panel">
-            <h2>💬 AI Chat (with Memory)</h2>
+            <h2>💬 Smart Chat (With Memory)</h2>
+            <p style="color: #666; margin-bottom: 15px; font-size: 14px;">
+                💡 Tip: AI remembers your conversation history, allowing for multi-turn dialogue.
+            </p>
             <div class="chat-messages" id="chatMessages"></div>
             <div class="input-group">
                 <input type="text" id="chatInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
             </div>
             <button onclick="sendMessage()">📤 Send</button>
+            <button onclick="viewMemory()" class="secondary">👁️ View Memory</button>
             <button onclick="clearMemory()" class="secondary">🗑️ Clear Memory</button>
             <div class="loading" id="chatLoading">
                 <div class="spinner"></div>
@@ -356,9 +360,9 @@
     </div>
 
     <script>
-        // Automatically detect environment and set API address
+        // Auto-detect environment and set API address
         const API_BASE = (() => {
-            // Local environment
+            // Localhost
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                 return 'http://localhost:3000/api';
             }
@@ -390,7 +394,7 @@
             } catch (error) {
                 console.error('Backend connection failed:', error);
                 statusEl.className = 'connection-status disconnected';
-                statusEl.innerHTML = '🔴 Unable to connect to server<br>Please ensure backend is running (npm start)';
+                statusEl.innerHTML = '🔴 Unable to connect to server<br>Please ensure backend server is running (npm start)';
                 return false;
             }
         }
@@ -413,7 +417,7 @@
             }
         }
 
-        // Drag and drop upload
+        // Drag and Drop Upload
         const uploadArea = document.getElementById('uploadArea');
         
         uploadArea.addEventListener('dragover', (e) => {
@@ -483,7 +487,7 @@
                 result.innerHTML = `
                     <div class="success">
                         <h3>✅ Success</h3>
-                        <p>PDF has been parsed and indexed into the knowledge base. You can now ask questions about it!</p>
+                        <p>PDF parsed and indexed into the knowledge base. You can now ask questions!</p>
                     </div>
                     <div class="result" style="margin-top: 20px;">
                         <h3>📄 Document Preview</h3>
@@ -498,7 +502,7 @@
                 let errorMessage = error.message;
                 
                 if (error.message.includes('Failed to fetch') || error.message === 'NetworkError when attempting to fetch resource.') {
-                    errorMessage = 'Cannot connect to server. Please ensure:\n1. Backend is running (npm start)\n2. Server address is correct (http://localhost:3000)\n3. No firewall/proxy is blocking connection';
+                    errorMessage = 'Cannot connect to server. Please check:\n1. Server is running (npm start)\n2. Correct address (http://localhost:3000)\n3. No firewall/proxy blocking';
                 }
                 
                 result.innerHTML = `<div class="error">Error: ${errorMessage}</div>`;
@@ -552,7 +556,7 @@
                         <h3>💡 Answer:</h3>
                         <p>${data.answer}</p>
                         <p style="margin-top: 15px; color: #666; font-size: 14px;">
-                            📊 Generated based on ${data.sources} document fragments
+                            📊 Generated based on ${data.sources} relevant document fragments
                         </p>
                     </div>
                 `;
@@ -568,12 +572,35 @@
             const result = document.getElementById('pdfResult');
             
             loading.style.display = 'block';
+            loading.innerHTML = '<div class="spinner"></div><p>Generating PDF summary... This may take 30-60s, please wait...</p>';
+
+            const startTime = Date.now();
 
             try {
+                console.log('📋 Starting PDF Summary');
+                console.log('⏱️  Start Time:', new Date().toISOString());
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    controller.abort();
+                    console.log('⏱️  Request Timed Out (90s)');
+                }, 90000); // 90s timeout
+                
                 const response = await fetch(`${API_BASE}/pdf-summary`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: controller.signal
                 });
+
+                clearTimeout(timeoutId);
+
+                const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+                console.log(`✅ Response Received (Time: ${duration}s)`);
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Server Error' }));
+                    throw new Error(errorData.error || `Server Error: ${response.status}`);
+                }
 
                 const data = await response.json();
                 
@@ -582,12 +609,27 @@
                 const existingInfo = document.getElementById('pdfInfoDisplay').innerHTML;
                 result.innerHTML = existingInfo + `
                     <div class="result">
-                        <h3>📋 PDF Document Summary</h3>
+                        <h3>📋 PDF Document Summary (Time: ${duration}s)</h3>
                         <p>${data.summary}</p>
                     </div>
                 `;
+                
+                console.log('✅ Summary Displayed');
             } catch (error) {
-                result.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                console.error('❌ PDF Summary Error:', error);
+                
+                const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+                console.log(`⏱️  Total Time: ${duration}s`);
+                
+                let errorMessage = error.message;
+                
+                if (error.name === 'AbortError') {
+                    errorMessage = `Summary timeout (${duration}s). Suggestions:\n1. Document too large\n2. Try asking specific questions in "PDF Q&A"\n3. Wait a moment and retry`;
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Cannot connect to server';
+                }
+                
+                result.innerHTML = `<div class="error">Error (${duration}s): ${errorMessage}</div>`;
             } finally {
                 loading.style.display = 'none';
             }
@@ -640,18 +682,18 @@
             messages.scrollTop = messages.scrollHeight;
 
             loading.style.display = 'block';
-            loading.innerHTML = '<div class="spinner"></div><p>Thinking, please wait...</p>';
+            loading.innerHTML = '<div class="spinner"></div><p>Thinking...</p>';
 
             const startTime = Date.now();
 
             try {
                 console.log('📤 Sending message:', message);
-                console.log('⏱️  Start time:', new Date().toISOString());
+                console.log('⏱️  Start Time:', new Date().toISOString());
                 
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => {
                     controller.abort();
-                    console.log('⏱️  Request timeout (60s)');
+                    console.log('⏱️  Request Timed Out (60s)');
                 }, 60000); // 60s timeout
 
                 const response = await fetch(`${API_BASE}/chat`, {
@@ -664,7 +706,7 @@
                 clearTimeout(timeoutId);
 
                 const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-                console.log(`✅ Response received (Duration: ${duration}s)`);
+                console.log(`✅ Response Received (Time: ${duration}s)`);
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ error: 'Server Error' }));
@@ -679,15 +721,15 @@
                 messages.innerHTML += `<div class="message assistant">${data.response}</div>`;
                 messages.scrollTop = messages.scrollHeight;
             } catch (error) {
-                console.error('❌ Chat error:', error);
+                console.error('❌ Chat Error:', error);
                 
                 const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-                console.log(`⏱️  Total duration: ${duration}s`);
+                console.log(`⏱️  Total Time: ${duration}s`);
                 
                 let errorMessage = error.message;
                 
                 if (error.name === 'AbortError') {
-                    errorMessage = 'Request timed out (60s). It might be a network issue or slow API response. Please check:\n1. Network connection\n2. API quota status (15 req/min)\n3. Try again later';
+                    errorMessage = 'Request timed out (60s). Check:\n1. Network connection\n2. API Quota (15 req/min)\n3. Retry later';
                 } else if (error.message.includes('Failed to fetch')) {
                     errorMessage = 'Cannot connect to server, please check if server is running';
                 } else if (error.message.includes('JSON')) {
@@ -697,6 +739,56 @@
                 messages.innerHTML += `<div class="error">Error (${duration}s): ${errorMessage}</div>`;
             } finally {
                 loading.style.display = 'none';
+            }
+        }
+
+        async function viewMemory() {
+            try {
+                console.log('📖 Fetching Memory...');
+                const response = await fetch(`${API_BASE}/memory`);
+                
+                if (!response.ok) {
+                    throw new Error(`Server Error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Memory Data:', data);
+                
+                if (data.error) throw new Error(data.error);
+                
+                const messages = data.history || [];
+                const total = data.total || 0;
+                
+                if (total === 0) {
+                    alert('💭 No conversation memory yet.\n\nHistory will be saved automatically once you start chatting.');
+                    return;
+                }
+                
+                let memoryText = `📝 Conversation Memory\n`;
+                memoryText += `Total: ${total} messages\n`;
+                memoryText += `${'='.repeat(50)}\n\n`;
+                
+                messages.forEach((msg) => {
+                    const role = msg.type === 'human' ? '👤 User' : 
+                                 msg.type === 'ai' ? '🤖 Assistant' : '❓ Unknown';
+                    
+                    let content = msg.content || '(No content)';
+                    
+                    // Limit display length
+                    if (content.length > 150) {
+                        content = content.substring(0, 150) + '...';
+                    }
+                    
+                    memoryText += `${msg.index}. ${role}\n${content}\n\n`;
+                });
+                
+                memoryText += `${'='.repeat(50)}\n`;
+                memoryText += `Tip: Click "Clear Memory" to delete history.`;
+                
+                alert(memoryText);
+            } catch (error) {
+                console.error('View memory error:', error);
+                alert('❌ Failed to view memory\n\nError: ' + error.message);
             }
         }
 
