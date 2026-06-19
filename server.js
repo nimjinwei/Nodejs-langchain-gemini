@@ -23,8 +23,9 @@ let pdfParse = null;
 async function loadPdfParser() {
   if (!pdfParse) {
     try {
-      // Import the package entry so both ESM and CommonJS installs work
-      const module = await import('pdf-parse');
+      // Import the inner module directly to avoid pdf-parse's index.js debug code,
+      // which tries to read a non-existent test PDF under ESM and crashes the import
+      const module = await import('pdf-parse/lib/pdf-parse.js');
       // Support both `module.default` (when transpiled) and the module itself
       pdfParse = module.default || module;
       console.log('✅ PDF Parser loaded successfully');
