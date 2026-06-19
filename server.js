@@ -84,6 +84,59 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
 
+// gemini-embedding-001 has a low free-tier per-minute quota. The default
+// GoogleGenerativeAIEmbeddings.embedDocuments fires every batch concurrently and,
+// on a 429, silently fills those vectors with [] — which then corrupts the HNSWLib
+// index ("expected 0, but got 3072"). This subclass embeds sequentially in small
+// batches, retries on quota errors with backoff, and throws instead of ever
+// returning an empty vector.
+class SafeGoogleEmbeddings extends GoogleGenerativeAIEmbeddings {
+  async embedDocuments(texts) {
+    const cleaned = texts.map((t) => (t ?? "").replace(/\n/g, " "));
+    const batchSize = 50;
+    const out = [];
+
+    for (let i = 0; i < cleaned.length; i += batchSize) {
+      const batch = cleaned.slice(i, i + batchSize);
+      let success = false;
+      let lastErr;
+
+      for (let attempt = 0; attempt < 5 && !success; attempt++) {
+        try {
+          const res = await this.client.batchEmbedContents({
+            requests: batch.map((text) => ({
+              content: { role: "user", parts: [{ text }] },
+            })),
+          });
+          for (const e of res.embeddings) {
+            const v = e.values || [];
+            if (!v.length) throw new Error("Empty embedding returned by API");
+            out.push(v);
+          }
+          success = true;
+        } catch (err) {
+          lastErr = err;
+          const isQuota = /429|quota|rate/i.test(err.message);
+          if (isQuota && attempt < 4) {
+            const waitMs = 15000 * (attempt + 1);
+            console.warn(`  ⏳ Embedding quota hit, waiting ${waitMs / 1000}s then retrying (batch ${i / batchSize + 1})...`);
+            await new Promise((r) => setTimeout(r, waitMs));
+          } else if (!isQuota) {
+            throw err;
+          }
+        }
+      }
+
+      if (!success) {
+        throw new Error(`Embedding failed after retries (quota): ${lastErr?.message || "unknown"}`);
+      }
+      console.log(`  🔢 Embedded ${out.length}/${cleaned.length} chunks`);
+    }
+
+    return out;
+  }
+}
+
 // RAG System Class
 class RAGSystem {
   constructor() {
@@ -93,7 +146,7 @@ class RAGSystem {
       apiKey: process.env.GOOGLE_API_KEY,
     });
 
-    this.embeddings = new GoogleGenerativeAIEmbeddings({
+    this.embeddings = new SafeGoogleEmbeddings({
       modelName: "gemini-embedding-001",
       apiKey: process.env.GOOGLE_API_KEY,
     });
@@ -110,7 +163,7 @@ class RAGSystem {
 
   async ingestDocuments(documents, metadata = {}) {
     const textSplitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
+      chunkSize: 2000,
       chunkOverlap: 200,
     });
 
