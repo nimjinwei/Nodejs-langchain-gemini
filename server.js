@@ -153,6 +153,8 @@ class RAGSystem {
         textLength: text.length,
         uploadedAt: new Date().toISOString(),
       };
+      // Keep the extracted text so summaries don't need a vector search
+      this.currentPdfText = text;
 
       // Split and Index
       await this.ingestDocuments([text], {
@@ -218,9 +220,9 @@ Summary (in English):`;
       throw new Error("Please upload a PDF file first");
     }
 
-    // Get all document fragments
-    const allDocs = await this.vectorStore.similaritySearch("", 10);
-    const fullText = allDocs.map(doc => doc.pageContent).join("\n\n");
+    // Use the stored PDF text directly. Avoid similaritySearch("") here:
+    // embedding an empty string hangs the Google API and causes timeouts.
+    const fullText = this.currentPdfText || "";
 
     const summarizePrompt = `Please generate a comprehensive summary (5-8 sentences) for the following PDF document content, including:
 1. Main topic
