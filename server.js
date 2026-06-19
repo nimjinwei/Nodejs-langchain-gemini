@@ -114,8 +114,16 @@ class RAGSystem {
       chunkOverlap: 200,
     });
 
-    const splitDocs = await textSplitter.createDocuments(documents);
-    
+    const allSplitDocs = await textSplitter.createDocuments(documents);
+
+    // Drop empty/whitespace chunks: gemini-embedding-001 fails the whole batch
+    // if any input is blank, returning 0-length vectors that corrupt the index.
+    const splitDocs = allSplitDocs.filter(doc => doc.pageContent && doc.pageContent.trim().length > 0);
+
+    if (splitDocs.length === 0) {
+      throw new Error("No non-empty text chunks to index");
+    }
+
     // Add metadata
     splitDocs.forEach(doc => {
       doc.metadata = { ...doc.metadata, ...metadata };
