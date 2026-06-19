@@ -18,16 +18,18 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
-// Dynamic import for pdf-parse (lazy load)
+// Dynamic import for pdf-parse (lazy load) with CommonJS compatibility
 let pdfParse = null;
 async function loadPdfParser() {
   if (!pdfParse) {
     try {
-      const module = await import('pdf-parse/lib/pdf-parse.js');
-      pdfParse = module.default;
+      // Import the package entry so both ESM and CommonJS installs work
+      const module = await import('pdf-parse');
+      // Support both `module.default` (when transpiled) and the module itself
+      pdfParse = module.default || module;
       console.log('✅ PDF Parser loaded successfully');
     } catch (error) {
-      console.warn('⚠️  PDF Parser load failed');
+      console.warn('⚠️  PDF Parser load failed:', error.message);
       console.warn('   Try: npm install pdf-parse');
     }
   }
